@@ -203,8 +203,6 @@ func (c *Cap) CreateChallenge(conf *ChallengeConfig) (*ChallengeResponse, error)
 	}, nil
 }
 func (c *Cap) RedeemSimpleChallenge(input *SimpleSolution) (*RedeemResponse, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
 
 	if input == nil || input.Token == "" || input.Solutions == nil {
 		return &RedeemResponse{
@@ -213,24 +211,22 @@ func (c *Cap) RedeemSimpleChallenge(input *SimpleSolution) (*RedeemResponse, err
 		}, nil
 	}
 
-	c.cleanExpiredTokens()
 
 	challengeData, exists := c.config.State.ChallengesList[input.Token]
 	if !exists || challengeData.Expires < time.Now().UnixMilli() {
 		delete(c.config.State.ChallengesList, input.Token)
 		return &RedeemResponse{
 			Success: false,
-			Message: "Challenge expired",
+			Message: "Challenge expired:220",
 		}, nil
 	}
 
-	delete(c.config.State.ChallengesList, input.Token)
 
 	// 将 []interface{} solution 转换成 [][]interface{}，每个补全 [salt, target, value]
 	if len(input.Solutions) != len(challengeData.Challenge) {
 		return &RedeemResponse{
 			Success: false,
-			Message: "Invalid solution count",
+			Message: "Invalid solution count:228",
 		}, nil
 	}
 
