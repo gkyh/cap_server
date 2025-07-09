@@ -91,43 +91,33 @@ func handleVerify(capServer *capserver.Cap) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 
-		var req struct {
-			Token     string          `json:"token"`
-			Solutions [][]interface{} `json:"solutions"` // Array of [salt, target, solution] tuples
-		}
-
-		/*if 1 == 1 {
-			http.Error(w, "TestError", http.StatusBadRequest)
-			return
-		}*/
-
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		var input capserver.SimpleSolution
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			http.Error(w, "Invalid JSON", http.StatusBadRequest)
 			return
 		}
 
-		if req.Token == "" {
+		if input.Token == "" {
 			http.Error(w, "Token is required", http.StatusBadRequest)
 			return
 		}
 
-		if len(req.Solutions) == 0 {
+		if len(input.Solutions) == 0 {
 			http.Error(w, "Solution is required", http.StatusBadRequest)
 			return
 		}
 
-		// Create solution structure with [salt, target, solution] format
-		solution := &capserver.Solution{
-			Token:     req.Token,
-			Solutions: req.Solutions,
-		}
-
-		result, err := capServer.RedeemChallenge(solution)
+		fmt.Println(input)
+		result, err := capServer.RedeemSimpleChallenge(&input)
 		if err != nil {
+
+			fmt.Println(err)
 			http.Error(w, fmt.Sprintf("Failed to redeem challenge: %v", err), http.StatusInternalServerError)
 			return
 		}
 
+		fmt.Println("result")
+		fmt.Println(result)
 		response := map[string]interface{}{
 			"success": result.Success,
 		}
@@ -139,7 +129,11 @@ func handleVerify(capServer *capserver.Cap) http.HandlerFunc {
 			response["expires"] = result.Expires
 		}
 
-		json.NewEncoder(w).Encode(response)
+		if !result.Success {
+			response["error"] = result.Message
+		}
+
+		_ = json.NewEncoder(w).Encode(response)
 	}
 }
 
