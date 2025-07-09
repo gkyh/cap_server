@@ -49,6 +49,11 @@ type Solution struct {
 	Solutions [][]interface{} `json:"solutions"` // Array of [salt, target, solution] tuples
 }
 
+type SimpleSolution struct {
+	Token     string        `json:"token"`
+	Solutions []interface{} `json:"solutions"`
+}
+
 // CapConfig contains the main configuration for the Cap instance
 type CapConfig struct {
 	TokensStorePath string          `json:"tokensStorePath,omitempty"` // Path to store tokens file
@@ -197,7 +202,49 @@ func (c *Cap) CreateChallenge(conf *ChallengeConfig) (*ChallengeResponse, error)
 		Expires:   expires,
 	}, nil
 }
+func (c *Cap) RedeemSimpleChallenge(input *SimpleSolution) (*RedeemResponse, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 
+	if input == nil || input.Token == "" || input.Solutions == nil {
+		return &RedeemResponse{
+			Success: false,
+			Message: "Invalid input",
+		}, nil
+	}
+
+	c.cleanExpiredTokens()
+
+	challengeData, exists := c.config.State.ChallengesList[input.Token]
+	if !exists || challengeData.Expires < time.Now().UnixMilli() {
+		delete(c.config.State.ChallengesList, input.Token)
+		return &RedeemResponse{
+			Success: false,
+			Message: "Challenge expired",
+		}, nil
+	}
+
+	delete(c.config.State.ChallengesList, input.Token)
+
+	// 将 []interface{} solution 转换成 [][]interface{}，每个补全 [salt, target, value]
+	if len(input.Solutions) != len(challengeData.Challenge) {
+		return &RedeemResponse{
+			Success: false,
+			Message: "Invalid solution count",
+		}, nil
+	}
+
+	wrapped := make([][]interface{}, 0, len(input.Solutions))
+	for i, val := range input.Solutions {
+		pair := challengeData.Challenge[i]
+		wrapped = append(wrapped, []interface{}{pair[0], pair[1], val})
+	}
+
+	return c.RedeemChallenge(&Solution{
+		Token:     input.Token,
+		Solutions: wrapped,
+	})
+}
 // RedeemChallenge validates a challenge solution and returns a verification token
 func (c *Cap) RedeemChallenge(solution *Solution) (*RedeemResponse, error) {
 	c.mu.Lock()
